@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Disallow: /thank-you.html
+Disallow: /404.html
+
+# حماية روبوتات محركات البحث الذكية
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# رابط خريطة الموقع الرسمية
+Sitemap: https://wallpaper-parquet-riyadhpages.dev/sitemap.xml
