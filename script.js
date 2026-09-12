@@ -17,10 +17,10 @@
     clientPhoneFormatted: '0559886596',
     devPhone: '966578539687',
     googleAds: {
-      conversionId: 'AW-xxxxxxxxxxxxx',
-      callLabel: 'xxxxxxxxxxxxxxxxx',
-      whatsAppLabel: 'xxxxxxxxxxxxxx',
-      formLabel: 'xxxxxxxxxxxxxxxxxxx'
+      conversionId: 'AAW-18443634865',
+      callLabel: 'UMgxCIqKwPUcELGRztpE',
+      whatsAppLabel: 'GOrkCKf1yvUcELGRztpE',
+      formLabel: '7FeECI-vx_UcELGRztpE'
     },
     pricingRates: {
       'wallpaper-rolls': 25, // سعر تقريبي للفة أو المتر حسب الخدمة
