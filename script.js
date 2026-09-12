@@ -2,7 +2,7 @@
  * ==========================================================================
  * Project: توريد وتركيب ورق الجدران وباركيه الأرضيات في الرياض
  * Architecture: Vanilla JavaScript - High Performance & CRO Engine
- * Features: Lazy Google Ads Tracking, Dev Protection, Quote Calculator & Form WhatsApp Bridge
+ * Features: Fixed Google Ads Tracking, Dev Exclusion, Dual-Callback Fix, Safe Redirect
  * ==========================================================================
  */
 
@@ -17,13 +17,14 @@
     clientPhoneFormatted: '0559886596',
     devPhone: '966578539687',
     googleAds: {
-      conversionId: 'AAW-18443634865',
+      // تصحيح الخطأ: تم حذف حرف A الزائد ليصبح AW صالحاً
+      conversionId: 'AW-18443634865',
       callLabel: 'UMgxCIqKwPUcELGRztpE',
       whatsAppLabel: 'GOrkCKf1yvUcELGRztpE',
       formLabel: '7FeECI-vx_UcELGRztpE'
     },
     pricingRates: {
-      'wallpaper-rolls': 25, // سعر تقريبي للفة أو المتر حسب الخدمة
+      'wallpaper-rolls': 25,
       '3d-wallpaper': 45,
       'linen-wallpaper': 35,
       'wood-parquet': 55,
@@ -33,45 +34,44 @@
   };
 
   // --------------------------------------------------------------------------
-  // 2. محرك تتبع إعلانات قوقل فائق الأداء (Lazy Loaded Google Ads Engine)
+  // 2. تهيئة مصفوفة dataLayer فورياً لمنع ضياع الإحالات عند النقر السريع
   // --------------------------------------------------------------------------
-  let gtagLoaded = false;
+  window.dataLayer = window.dataLayer || [];
+  function gtag() {
+    window.dataLayer.push(arguments);
+  }
+  window.gtag = gtag;
+
+  let scriptInjected = false;
 
   function isDeveloperSession() {
-    // استثناء رقم المطور أو المعاينة المباشرة لمنع حرق الميزانية
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('dev_preview') === 'true') return true;
     if (localStorage.getItem('is_dev_mode') === 'true') return true;
     return false;
   }
 
-  function initGoogleAdsTracking() {
-    if (gtagLoaded || isDeveloperSession()) return;
+  function injectGoogleAdsScript() {
+    if (scriptInjected || isDeveloperSession()) return;
+    scriptInjected = true;
+
+    gtag('js', new Date());
+    gtag('config', APP_CONFIG.googleAds.conversionId);
 
     const script = document.createElement('script');
     script.async = true;
     script.src = `https://www.googletagmanager.com/gtag/js?id=${APP_CONFIG.googleAds.conversionId}`;
     document.head.appendChild(script);
-
-    window.dataLayer = window.dataLayer || [];
-    function gtag() {
-      window.dataLayer.push(arguments);
-    }
-    window.gtag = gtag;
-
-    gtag('js', new Date());
-    gtag('config', APP_CONFIG.googleAds.conversionId);
-    gtagLoaded = true;
   }
 
-  // تحميل التتبع في وضع خمول المعالج بعد تفاعل المستخدم
+  // تحميل ملف السكربت الخارجي في وقت الخمول للحفاظ على Core Web Vitals
   function scheduleLazyTracking() {
     const triggerEvents = ['click', 'touchstart', 'scroll'];
     const handler = function () {
       if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => initGoogleAdsTracking(), { timeout: 2000 });
+        requestIdleCallback(injectGoogleAdsScript, { timeout: 2000 });
       } else {
-        setTimeout(initGoogleAdsTracking, 500);
+        setTimeout(injectGoogleAdsScript, 500);
       }
       triggerEvents.forEach(evt => window.removeEventListener(evt, handler));
     };
@@ -79,36 +79,51 @@
     triggerEvents.forEach(evt => window.addEventListener(evt, handler, { passive: true, once: true }));
   }
 
-  // إرسال أحداث التحويل الآمنة
+  // دالة إرسال الإحالات المحمية من التكرار والتعليق
   window.reportConversion = function (conversionType, customCallback) {
+    injectGoogleAdsScript();
+
+    let executed = false;
+    const runCallbackOnce = function () {
+      if (!executed) {
+        executed = true;
+        if (typeof customCallback === 'function') {
+          customCallback();
+        }
+      }
+    };
+
     if (isDeveloperSession()) {
       console.warn(`[Tracking Bypassed - Dev Mode Active]: Event: ${conversionType}`);
-      if (typeof customCallback === 'function') customCallback();
+      runCallbackOnce();
       return;
     }
 
-    if (typeof window.gtag === 'function') {
-      let label = '';
-      if (conversionType === 'call') label = APP_CONFIG.googleAds.callLabel;
-      if (conversionType === 'whatsapp') label = APP_CONFIG.googleAds.whatsAppLabel;
-      if (conversionType === 'form') label = APP_CONFIG.googleAds.formLabel;
+    let label = '';
+    if (conversionType === 'call') label = APP_CONFIG.googleAds.callLabel;
+    if (conversionType === 'whatsapp') label = APP_CONFIG.googleAds.whatsAppLabel;
+    if (conversionType === 'form') label = APP_CONFIG.googleAds.formLabel;
 
-      window.gtag('event', 'conversion', {
-        send_to: `${APP_CONFIG.googleAds.conversionId}/${label}`,
-        event_callback: function () {
-          if (typeof customCallback === 'function') customCallback();
-        }
-      });
+    // مهلة أمان قصوى 600ms تضمن عدم تعليق المستخدم حتى لو تم حظر السكربت بـ AdBlock
+    const safetyTimeout = setTimeout(runCallbackOnce, 600);
 
-      // مهلة أمان قصوى 600ms في حال بطء الاتصال
-      setTimeout(() => {
-        if (typeof customCallback === 'function') {
-          customCallback();
-          customCallback = null;
-        }
-      }, 600);
+    if (typeof window.gtag === 'function' && label) {
+      try {
+        window.gtag('event', 'conversion', {
+          send_to: `${APP_CONFIG.googleAds.conversionId}/${label}`,
+          transport_type: 'beacon',
+          event_callback: function () {
+            clearTimeout(safetyTimeout);
+            runCallbackOnce();
+          }
+        });
+      } catch (e) {
+        clearTimeout(safetyTimeout);
+        runCallbackOnce();
+      }
     } else {
-      if (typeof customCallback === 'function') customCallback();
+      clearTimeout(safetyTimeout);
+      runCallbackOnce();
     }
   };
 
@@ -133,19 +148,10 @@
       document.body.style.overflow = isOpen ? 'hidden' : '';
     }
 
-    if (hamburgerBtn) {
-      hamburgerBtn.addEventListener('click', () => toggleDrawer());
-    }
+    if (hamburgerBtn) hamburgerBtn.addEventListener('click', () => toggleDrawer());
+    if (drawerCloseBtn) drawerCloseBtn.addEventListener('click', () => toggleDrawer(false));
+    if (backdrop) backdrop.addEventListener('click', () => toggleDrawer(false));
 
-    if (drawerCloseBtn) {
-      drawerCloseBtn.addEventListener('click', () => toggleDrawer(false));
-    }
-
-    if (backdrop) {
-      backdrop.addEventListener('click', () => toggleDrawer(false));
-    }
-
-    // الأكورديون الخاص بقائمة الخدمات بالجوال
     if (accordionBtn && accordionContent) {
       accordionBtn.addEventListener('click', function () {
         const isExpanded = accordionContent.classList.contains('is-expanded');
@@ -157,7 +163,6 @@
       });
     }
 
-    // تأثير رأس الموقع عند التمرير
     window.addEventListener('scroll', function () {
       if (!siteHeader) return;
       if (window.scrollY > 20) {
@@ -227,27 +232,36 @@
       const targetUrl = `https://wa.me/${APP_CONFIG.clientPhone}?text=${encodedMsg}`;
 
       window.reportConversion('form', function () {
-        window.open(targetUrl, '_blank');
+        // استخدام location.href يمنع حظر المتصفحات للنافذة المنبثقة بالجوال
+        window.location.href = targetUrl;
       });
     });
   }
 
   // --------------------------------------------------------------------------
-  // 6. تتبع النقرات التلقائي للأزرار العائمة والاتصال
+  // 6. تتبع النقرات التلقائي للأزرار مع استثناء رقم المطور
   // --------------------------------------------------------------------------
   function setupConversionClickTrackers() {
     document.addEventListener('click', function (e) {
-      const callLink = e.target.closest('a[href^="tel:"]');
-      if (callLink) {
+      const link = e.target.closest('a');
+      if (!link) return;
+
+      const href = link.getAttribute('href') || '';
+
+      // استثناء نقرات المطور حتى لا تحرق الميزانية
+      if (href.includes(APP_CONFIG.devPhone) || href.includes('0578539687')) {
+        return;
+      }
+
+      if (href.startsWith('tel:')) {
         window.reportConversion('call');
         return;
       }
 
-      const waLink = e.target.closest('a[href*="wa.me"], a[href*="api.whatsapp.com"]');
-      if (waLink) {
+      if (href.includes('wa.me') || href.includes('whatsapp.com')) {
         window.reportConversion('whatsapp');
       }
-    });
+    }, true);
   }
 
   // --------------------------------------------------------------------------
