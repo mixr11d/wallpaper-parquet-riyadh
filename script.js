@@ -2,7 +2,7 @@
  * ==========================================================================
  * Project: توريد وتركيب ورق الجدران وباركيه الأرضيات في الرياض
  * Architecture: Vanilla JavaScript - High Performance & CRO Engine
- * Features: Fixed Google Ads Tracking, Dev Exclusion, Dual-Callback Fix, Safe Redirect
+ * Features: Fixed Google Ads Tracking, Dev Exclusion, Dual-Callback Fix, Safe Redirect, Unified WhatsApp
  * ==========================================================================
  */
 
@@ -16,6 +16,7 @@
     clientPhone: '966559886596',
     clientPhoneFormatted: '0559886596',
     devPhone: '966578539687',
+    defaultWhatsAppMessage: 'السلام عليكم جيتك من الموقع لطلب خدمة',
     googleAds: {
       // تصحيح الخطأ: تم حذف حرف A الزائد ليصبح AW صالحاً
       conversionId: 'AW-18443634865',
@@ -239,7 +240,27 @@
   }
 
   // --------------------------------------------------------------------------
-  // 6. تتبع النقرات التلقائي للأزرار مع استثناء رقم المطور
+  // 6. توحيد رسائل الواتساب في جميع أزرار الموقع تلقائياً
+  // --------------------------------------------------------------------------
+  function unifyWhatsAppMessages() {
+    const encodedMessage = encodeURIComponent(APP_CONFIG.defaultWhatsAppMessage);
+    const targetUrl = `https://wa.me/${APP_CONFIG.clientPhone}?text=${encodedMessage}`;
+    
+    // استهداف جميع روابط الواتساب التابعة لرقم العميل واستثناء رقم المطور
+    const links = document.querySelectorAll('a[href*="wa.me"], a[href*="whatsapp.com"]');
+    
+    links.forEach(link => {
+      const href = link.getAttribute('href') || '';
+      // عدم المساس برابط المطور الموجود بالفوتر
+      if (href.includes(APP_CONFIG.devPhone) || href.includes('0578539687')) {
+        return;
+      }
+      link.href = targetUrl;
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // 7. تتبع النقرات التلقائي للأزرار مع استثناء رقم المطور
   // --------------------------------------------------------------------------
   function setupConversionClickTrackers() {
     document.addEventListener('click', function (e) {
@@ -265,13 +286,14 @@
   }
 
   // --------------------------------------------------------------------------
-  // 7. التهيئة عند تحميل المستند
+  // 8. التهيئة عند تحميل المستند
   // --------------------------------------------------------------------------
   document.addEventListener('DOMContentLoaded', function () {
     scheduleLazyTracking();
     setupNavigation();
     setupBackToTop();
     setupQuoteCalculator();
+    unifyWhatsAppMessages();
     setupConversionClickTrackers();
   });
 
