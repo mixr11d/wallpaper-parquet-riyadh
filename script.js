@@ -227,7 +227,7 @@
       const serviceName = serviceSelect?.options[serviceSelect.selectedIndex]?.text || 'استفسار عن الديكورات';
       const areaVal = areaInput?.value || 'غير محددة';
 
-      const messageText = `السلام عليكم ورحمة الله، أود طلب تسعيرة لـ:\n- الخدمة: ${serviceName}\n- الحي المستهدف: ${district}\n- المساحة التقديرية: ${areaVal} م²\n- المصدر: الموقع الإلكتروني`;
+      const messageText = `السلام عليكم جيتك من الموقع لطلب خدمة:\n- الخدمة: ${serviceName}\n- الحي المستهدف: ${district}\n- المساحة التقديرية: ${areaVal} م²\n- المصدر: الموقع الإلكتروني`;
       const encodedMsg = encodeURIComponent(messageText);
       const targetUrl = `https://wa.me/${APP_CONFIG.clientPhone}?text=${encodedMsg}`;
 
